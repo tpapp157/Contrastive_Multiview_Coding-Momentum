@@ -1,6 +1,5 @@
 
 import os
-os.chdir(r'C:\users\tpapp\desktop\cmc')
 
 import tensorflow as tf
 import glob
@@ -12,7 +11,7 @@ import cv2
 from ConvNorm import ConvNorm
 
 #%%
-PATH = r'C:\users\tpapp\desktop\gan\datasets\TERR\trainH'
+PATH = 'dataset'
 
 #%%
 BUFFER_SIZE = 50
@@ -260,7 +259,7 @@ def train_step(inputs, Mem):
 
 
 def fit(train_ds, epochs):
-    datpath = r'C:\Users\tpapp\Desktop\CMC\data'
+    datpath = 'data'
     Mem0 = [None]*len(Encoders)
     
     L = []
