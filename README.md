@@ -22,3 +22,11 @@ Training for 15 Epochs and using UMAP to visualize the CMC embeddings produces t
 ![](../master/images/Embed.png)
 
 Clearly the CMC embeddding has learned the general data structure. It's likely that outputs from earlier convolutional layers would be more informative depending on the detail scale of interest.
+
+
+## Update: Unified Feature Extractor
+As shown in [Rethinking Few-Shot Image Classification: a Good Embedding Is All You Need?](https://arxiv.org/abs/2003.11539), using a single feature extraction network for all views can improve the overall quality of features learned. Training a single network also allows that network to be significantly larger.
+
+CMC_combined implements a 34-layer resnet as the core feature extractor for all image views. Since each view starts with a different number of channels (3 for terrain, 1 for height, 7 for segmentation) each view learns its own initial convolution layer to standardize the number of channels prior to the feature extractor. Similarly, each view learns its own final fully-connected classification layer.
+
+Learned embeddings are improved with more detailed structure. Training is significantly more stable.
