@@ -11,7 +11,7 @@ import cv2
 from ConvNorm import ConvNorm
 
 #%%
-PATH = 'dataset'
+PATH = r'dataset'
 
 #%%
 BUFFER_SIZE = 50
@@ -188,10 +188,10 @@ def NCEloss(x, q_size):
     Pn =  q_size / (q_size+1)
 
     P_pos = x[:, 0]
-    log_D1 = tf.math.log(P_pos / (P_pos + Pn + eps))
+    log_D1 = tf.math.log(P_pos / (P_pos + Pn + eps) + eps)
 
     P_neg = x[:, 1:]
-    log_D0 = tf.math.log(tf.ones_like(P_neg) * Pn / (P_neg + Pn + eps))
+    log_D0 = tf.math.log(tf.ones_like(P_neg) * Pn / (P_neg + Pn + eps) + eps)
     
     loss = - (tf.math.reduce_sum(log_D1) + tf.math.reduce_sum(log_D0)) / bsz
     loss = tf.clip_by_value(loss, -1e10, 1e10)

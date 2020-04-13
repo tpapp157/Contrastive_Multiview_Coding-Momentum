@@ -4,7 +4,7 @@ from sklearn.decomposition import PCA
 
 #%%
 def model():
-    temp = Encoders[1]
+    temp = Encoders[0]
     outputs = [temp.get_layer(index=i).output for i in [j for j,n in enumerate(temp.layers) if ('add' in n.name)]]
     return tf.keras.Model([temp.input], outputs)
 
@@ -14,7 +14,7 @@ M = model()
 #%%
 inp = []
 test = []
-for _,n,_,_ in train_dataset.take(25):
+for n in test_dataset.take(500):
     test.append([np.array(i) for i in M(n)])
     inp.append(np.array(n))
 inp = np.vstack(inp)

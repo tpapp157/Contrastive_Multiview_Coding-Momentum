@@ -1,10 +1,6 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 from tensorflow.keras import backend as K
-from tensorflow.keras import initializers, regularizers, constraints
-from tensorflow.keras.layers import Layer, InputSpec
+from tensorflow.keras import initializers
+from tensorflow.keras.layers import Layer
 from tensorflow.python.keras.utils import conv_utils
 import tensorflow as tf
 

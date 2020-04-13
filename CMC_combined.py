@@ -11,7 +11,7 @@ import cv2
 from ConvNorm import ConvNorm
 
 #%%
-PATH = 'images'
+PATH = r'dataset'
 
 #%%
 BUFFER_SIZE = 50
