@@ -3,20 +3,29 @@ from tensorflow.keras import initializers
 from tensorflow.keras.layers import Layer
 from tensorflow.python.keras.utils import conv_utils
 import tensorflow as tf
-
+import numpy as np
 
 
 class ConvNorm(Layer):
 
-    def __init__(self, filters, kernel_size=3, strides=1, kernel_initializer='glorot_uniform', **kwargs):
+    def __init__(self, filters, kernel_size=3, strides=1, kernel_initializer='glorot_uniform', group_size=0, **kwargs):
         super(ConvNorm, self).__init__(**kwargs)
         self.filters = filters
         self.kernel_size = conv_utils.normalize_tuple(kernel_size, 2, 'kernel_size')
         self.strides = strides
         self.kernel_initializer = initializers.get(kernel_initializer)
+        
+        if group_size>0:
+            assert np.mod(filters, group_size)==0
+        self.group_size = group_size
 
     def build(self, input_shape):
         input_dim = input_shape[-1]
+        
+        if self.group_size>0:
+            assert np.mod(input_dim, self.group_size)==0
+            input_dim = self.group_size
+        
         kernel_shape = self.kernel_size + (input_dim, self.filters)
         self.kernel = self.add_weight(shape=kernel_shape, initializer=self.kernel_initializer, name='kernel')
         self.built = True
