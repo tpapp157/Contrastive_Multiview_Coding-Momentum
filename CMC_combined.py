@@ -268,24 +268,16 @@ class MemoryMoCo(tf.keras.layers.Layer):
         self.input_size = input_shape[0][1]
         
         
-    def call(self, X, Y, Mem):
+    def call(self, X, Mem):
         batch = X[0].shape[0]
-        
-        nMem = [0]*len(Mem)
-        for i in range(len(Mem)):
-            if Mem[i]==None:
-                std = 1. / np.sqrt(self.input_size / 3)
-                nMem[i] = np.random.normal(size=(1, self.q_size, self.input_size)).astype('float32')*(2*std)-std
-            else:
-                nMem[i] = Mem[i]
         
         out0 = []
         Xn = [tf.linalg.norm(i, axis=1, keepdims=True) for i in X]
-        Mn = [tf.repeat(tf.linalg.norm(i, axis=2), batch, axis=0) for i in nMem]
+        Mn = [tf.repeat(tf.linalg.norm(i, axis=2), batch, axis=0) for i in Mem]
         for n,a in enumerate(self.combinations):
             i,j = a
             
-            M = tf.concat((tf.expand_dims(X[j], 1), tf.repeat(nMem[j], batch, axis=0)), axis=1, name=f'concat_{i}{j}')
+            M = tf.concat((tf.expand_dims(X[j], 1), tf.repeat(Mem[j], batch, axis=0)), axis=1, name=f'concat_{i}{j}')
             temp = tf.squeeze(tf.matmul(M, tf.expand_dims(X[i], -1)))
             N = Xn[i] * tf.concat((Xn[j], Mn[j]), axis=1)
             temp = tf.math.exp(temp / N / self.T)
@@ -303,16 +295,11 @@ class MemoryMoCo(tf.keras.layers.Layer):
             temp = tf.math.exp(temp / N / self.T)
             out1.append(temp)
         
-        
-        for i in range(len(nMem)):
-            nMem[i] = tf.concat((nMem[i][:, batch:, :], tf.expand_dims(Y[i], 0)), axis=1, name=f'update_{i}')
-        
-        return out0, out1, nMem
+        return out0, out1
 
 
 Q = 10*BATCH_SIZE
 Memory = MemoryMoCo(len(Classifiers), q_size=Q, combinations=combinations)
-
 
 
 def NCEloss(x, q_size):
@@ -336,20 +323,6 @@ def NCEloss(x, q_size):
 
 
 #%%
-optimizer = tf.keras.optimizers.Adam(1e-4, 0.9, clipnorm=100)
-
-checkpoint_dir = r'ckpt'
-if not os.path.isdir(checkpoint_dir):
-    os.makedirs(checkpoint_dir)
-
-checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
-checkpoint = tf.train.Checkpoint(optimizer=optimizer, Encoder=Encoder)
-checkpoint.listed = Init_Layers
-checkpoint.listed = Classifiers
-
-manager = tf.train.CheckpointManager(checkpoint, directory=checkpoint_dir, max_to_keep=5, keep_checkpoint_every_n_hours=2)
-status = checkpoint.restore(manager.latest_checkpoint)
-
 
 Encoder_ema = tf.keras.models.clone_model(Encoder)
 # =============================================================================
@@ -359,8 +332,28 @@ Encoder_ema = tf.keras.models.clone_model(Encoder)
 # =============================================================================
 Encoder_ema.trainable = False
 
+
 Init_Layers_ema = [tf.keras.models.clone_model(i) for i in Init_Layers]
 Classifiers_ema = [tf.keras.models.clone_model(i) for i in Classifiers]
+
+
+
+optimizer = tf.keras.optimizers.Adam(1e-4, 0.9, clipnorm=100)
+
+checkpoint_dir = r'ckpt'
+if not os.path.isdir(checkpoint_dir):
+    os.makedirs(checkpoint_dir)
+
+checkpoint_prefix = os.path.join(checkpoint_dir, "ckpt")
+checkpoint = tf.train.Checkpoint(optimizer=optimizer, Encoder=Encoder, Encoder_ema=Encoder_ema)
+checkpoint.Classifiers = Classifiers
+checkpoint.Classifiers_ema = Classifiers_ema
+checkpoint.Init_Layers = Init_Layers
+checkpoint.Init_Layers_ema = Init_Layers_ema
+
+manager = tf.train.CheckpointManager(checkpoint, directory=checkpoint_dir, max_to_keep=5, keep_checkpoint_every_n_hours=2)
+status = checkpoint.restore(manager.latest_checkpoint)
+
 for i in range(len(Classifiers_ema)):
     Classifiers_ema[i].trainable=False
     Init_Layers_ema[i].trainable=False
@@ -390,7 +383,7 @@ def train_step(inputs, Mem):
         y = [tf.stop_gradient(Classifiers_ema[i](Encoder_ema(x[i]))) for i in range(len(x))]
         x = [Classifiers[i](x0[i]) for i in range(len(x0))]
         
-        l_inter, l_intra, Mem = Memory(x, y, Mem)
+        l_inter, l_intra = Memory(x, Mem)
         loss = [NCEloss(i, Q) for i in l_inter] + [NCEloss(i, batch) for i in l_intra]
         if tf.math.reduce_any([(tf.math.is_nan(i) or tf.math.is_inf(i)) for i in loss]):
             tf.print(loss)
@@ -416,7 +409,7 @@ def train_step(inputs, Mem):
         for j in range(len(Classifiers[i].variables)):
             Classifiers_ema[i].variables[j] = m*Classifiers_ema[i].variables[j] + (1-m)*Classifiers[i].variables[j]
     
-    return loss, Mem, x0[0]
+    return y, loss, x0[0]
 
 
 def fit(train_ds, epochs):
@@ -424,7 +417,11 @@ def fit(train_ds, epochs):
     if not os.path.isdir(datpath):
         os.makedirs(datpath)
     
-    Mem0 = [None]*len(Classifiers)
+    Mem = [[]]*len(Classifiers)
+    for inputs in train_ds.take(np.ceil(Q/BATCH_SIZE)):
+        for i in range(len(Classifiers)):
+            Mem[i] += [Classifiers_ema[i](Encoder_ema(inputs[i])).numpy()]
+    Mem = [np.vstack(i)[-Q:,:] for i in Mem]
     
     for epoch in range(epochs):
         start = time.time()
@@ -435,10 +432,12 @@ def fit(train_ds, epochs):
         im = []
         for inputs in train_ds:
             im.append(np.array((inputs[0]+1)*127.5).astype('uint8'))
-            l, Mem, emb = train_step(inputs, Mem0)
+            nMem, l, emb = train_step(inputs, Mem)
+            
+            for i in range(len(Mem)):
+                Mem[i] = np.vstack([Mem[i], nMem[i].numpy()])[-Q:,:]
             
             l = np.array(l)
-            Mem0 = [np.array(m) for m in Mem]
             loss.append(np.array(l))
             x.append(np.mean(np.array(emb), axis=(1,2)))
         
