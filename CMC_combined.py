@@ -219,6 +219,7 @@ def Init_Layer(in_channels=3, channels=64):
 Encoder = FeatureExtractor(START_CHANNELS, blocks=5)
 
 # =============================================================================
+# ## RagNetX network structure using notation from paper.
 # #D = [2, 5, 14, 2]
 # #W = [80, 240, 560, 1360]
 # #G = 40
@@ -326,6 +327,7 @@ def NCEloss(x, q_size):
 
 Encoder_ema = tf.keras.models.clone_model(Encoder)
 # =============================================================================
+# ## Keras Clone Model does not support grouped convolutions properly. Need to rebuild the model and copy variable values over.
 # Encoder_ema = FeatureExtractor_regnet(D, W, G)
 # for i,_ in enumerate(Encoder_ema.variables):
 #     Encoder_ema.variables[i].assign(Encoder.variables[i].value())
@@ -377,7 +379,7 @@ def train_step(inputs, Mem):
         x = [Init_Layers[i](inputs[i]) for i in range(len(inputs))]
         
         x0 = [Encoder(i) for i in x]
-        #x0 = [tf.nn.avg_pool(i, 4, 4, padding='VALID') for i in x0]
+        #x0 = [tf.nn.avg_pool(i, 4, 4, padding='VALID') for i in x0]    #RegNetX network has less downsampling than ResNet.
         y = [tf.stop_gradient(Encoder_ema(i)) for i in x]
         
         y = [tf.stop_gradient(Classifiers_ema[i](Encoder_ema(x[i]))) for i in range(len(x))]
@@ -420,7 +422,7 @@ def fit(train_ds, epochs):
     Mem = [[]]*len(Classifiers)
     for inputs in train_ds.take(np.ceil(Q/BATCH_SIZE)):
         for i in range(len(Classifiers)):
-            Mem[i] += [Classifiers_ema[i](Encoder_ema(inputs[i])).numpy()]
+            Mem[i] += [Classifiers_ema[i](Encoder_ema(Init_Layers_ema[i](inputs[i]))).numpy()]
     Mem = [np.vstack(i)[-Q:,:] for i in Mem]
     
     for epoch in range(epochs):
@@ -478,7 +480,9 @@ def fit(train_ds, epochs):
         
         if np.mod(epoch+1, 1) == 0:
             manager.save()
-            TestModel.save(f'Encoder{epoch:02d}', include_optimizer=False)
+            if not os.path.isdir('encoders'):
+                os.makedirs('encoders')
+            TestModel.save(f'encoders\Encoder{epoch:02d}', include_optimizer=False)
         
         if np.any(np.isnan(loss)):
             break
