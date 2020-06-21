@@ -385,6 +385,7 @@ def train_step(inputs, Mem):
         y = [tf.stop_gradient(Classifiers_ema[i](Encoder_ema(x[i]))) for i in range(len(x))]
         x = [Classifiers[i](x0[i]) for i in range(len(x0))]
         
+        Mem = [tf.expand_dims(i, axis=0) for i in Mem]
         l_inter, l_intra = Memory(x, Mem)
         loss = [NCEloss(i, Q) for i in l_inter] + [NCEloss(i, batch) for i in l_intra]
         if tf.math.reduce_any([(tf.math.is_nan(i) or tf.math.is_inf(i)) for i in loss]):
