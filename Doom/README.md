@@ -14,4 +14,4 @@ I trained a 34 layer ResNet via Self-Supervised Contrastive Learning. Four separ
 Once the network has been trained, a sequence of images are selected and processed by the network at multiple resolution scales. The resulting feature maps are resized and concatenated. This image feature dataset is then post-processed, dimension reduced with UMAP, and clustered with HDBSCAN to extract the final segmentation. A short sequence is shown below.
 
 ## Sample Segmentation Result
-![](images/DoomSegmentation.gif)
+<img src=images/DoomSegmentation.gif width="200%" height="200%">
