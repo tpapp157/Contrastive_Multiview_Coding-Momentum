@@ -1,4 +1,4 @@
-# Contrastive Learning of Doom Eternal
+# Unsupervised Image Segmentation with Contrastive Learning in Doom Eternal
 
 ## Goal
 This script explores using Contrastive Learning to derive image features sufficient for basic image segmentation in a completely unsupervised pipeline.
